@@ -1,0 +1,16 @@
+﻿{
+  "name": "DESLIC-URL-SYSTEM-V1",
+  "version": "1.0.0",
+  "description": "DESOLIC URL Shortener",
+  "main": "index.js",
+  "scripts": {
+    "start": "iojs --use_strict start.js",
+    "test": "CREATE=create DEFAULT=https://www.desolic.de/ HOST=dev:3000 PORT=3000 iojs --use_strict start.js"
+  },
+  "author": "DEOLIC IT",
+  "license": "NO USE ALLOWED",
+  "dependencies": {
+    "babel": "^5.6.23",
+    "lowdb": "^0.10.2"
+  }
+}
