@@ -1,3 +1,4 @@
+import net from 'node:net';
 import Fastify from 'fastify';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
@@ -44,7 +45,7 @@ export async function buildApp(config, store) {
 
   // Unknown paths (including "/") fall back to the default redirect target.
   app.setNotFoundHandler((request, reply) => {
-    reply.code(303).header('location', config.defaultRedirect).send();
+    redirect(reply, config.defaultRedirect);
   });
 
   app.get('/healthz', { config: { rateLimit: false } }, async () => ({
@@ -55,21 +56,22 @@ export async function buildApp(config, store) {
     '/api/shorten',
     {
       config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+      // Verify the token before body parsing/validation, so unauthenticated
+      // requests never reach the schema.
+      onRequest: async (request, reply) => {
+        if (!verifyToken(request.headers.authorization)) {
+          return reply
+            .code(401)
+            .header('www-authenticate', 'Bearer')
+            .send({ error: 'unauthorized' });
+        }
+      },
       schema: { body: SHORTEN_BODY_SCHEMA },
     },
     async (request, reply) => {
-      if (!verifyToken(request.headers.authorization)) {
-        return reply
-          .code(401)
-          .header('www-authenticate', 'Bearer')
-          .send({ error: 'unauthorized' });
-      }
-
-      const target = normalizeHttpsUrl(request.body.url);
-      if (!target) {
-        return reply
-          .code(400)
-          .send({ error: 'url must be a valid https:// URL' });
+      const target = parseRedirectTarget(request.body.url);
+      if (target.error) {
+        return reply.code(400).send({ error: target.error });
       }
 
       const { slug: customSlug } = request.body;
@@ -84,9 +86,9 @@ export async function buildApp(config, store) {
               error: 'slug must match [A-Za-z0-9]+ and must not be reserved',
             });
           }
-          slug = store.createCustom(target, customSlug);
+          slug = store.createCustom(target.href, customSlug);
         } else {
-          slug = store.createGenerated(target);
+          slug = store.createGenerated(target.href);
         }
       } catch (err) {
         if (err instanceof SlugTakenError) {
@@ -105,26 +107,67 @@ export async function buildApp(config, store) {
     const { slug } = request.params;
     if (SLUG_PATTERN.test(slug)) {
       const url = store.resolve(slug);
-      if (url) {
-        return reply
-          .code(303)
-          .header('location', url)
-          .header('cache-control', 'no-store')
-          .send();
-      }
+      if (url) return redirect(reply, url);
     }
-    return reply.code(303).header('location', config.defaultRedirect).send();
+    return redirect(reply, config.defaultRedirect);
   });
 
   return app;
 }
 
-function normalizeHttpsUrl(value) {
+function redirect(reply, location) {
+  return reply
+    .code(303)
+    .header('location', location)
+    .header('cache-control', 'no-store')
+    .send();
+}
+
+function parseRedirectTarget(value) {
   let url;
   try {
     url = new URL(value);
   } catch {
-    return null;
+    return { error: 'url must be a valid https:// URL' };
   }
-  return url.protocol === 'https:' ? url.href : null;
+  if (url.protocol !== 'https:') {
+    return { error: 'url must be a valid https:// URL' };
+  }
+  if (isNonPublicHost(url.hostname)) {
+    return { error: 'url must point to a public host' };
+  }
+  return { href: url.href };
+}
+
+// Rejects loopback / private / link-local targets so the shortener cannot be
+// pointed at internal infrastructure.
+function isNonPublicHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local')
+  ) {
+    return true;
+  }
+
+  if (net.isIPv4(host)) {
+    const [a, b] = host.split('.').map(Number);
+    if (a === 0 || a === 10 || a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64.0.0/10
+    return false;
+  }
+
+  if (net.isIPv6(host)) {
+    if (host === '::' || host === '::1') return true;
+    if (/^f[cd]/.test(host)) return true; // unique-local fc00::/7
+    if (/^fe[89ab]/.test(host)) return true; // link-local fe80::/10
+    return false;
+  }
+
+  return false;
 }

@@ -90,6 +90,26 @@ test('non-https targets are rejected', async (t) => {
   }
 });
 
+test('non-public redirect targets are rejected', async (t) => {
+  const app = await makeApp(t);
+  for (const url of [
+    'https://localhost/admin',
+    'https://127.0.0.1/',
+    'https://10.0.0.5/',
+    'https://192.168.1.1/',
+    'https://169.254.1.1/',
+    'https://[::1]/',
+  ]) {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/shorten',
+      headers: AUTH,
+      payload: { url },
+    });
+    assert.equal(res.statusCode, 400, `expected 400 for ${url}`);
+  }
+});
+
 test('a custom slug is honoured and duplicates return 409', async (t) => {
   const app = await makeApp(t);
   const first = await app.inject({
