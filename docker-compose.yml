@@ -1,0 +1,58 @@
+# DESOLIC URL shortener — deploy on Synology Container Manager as a "Project".
+#
+# Two containers on a private network:
+#   - url-shortener : the app, NOT published on any host port
+#   - cloudflared   : an outbound Cloudflare Tunnel that serves link.desolic.com
+#
+# cloudflared only makes an OUTBOUND connection, so no router port forwarding
+# is needed and there is no conflict with DSM on 443 / 5001.
+#
+# Secrets come from a .env file next to this one (never commit it):
+#   AUTH_TOKEN_HASH=<run: npm run gen-token>
+#   CF_TUNNEL_TOKEN=<from the Cloudflare Zero Trust tunnel>
+#
+# In the Cloudflare tunnel, route the public hostname link.desolic.com to:
+#   http://url-shortener:3000
+
+services:
+  url-shortener:
+    build: .
+    image: desolic-url-system
+    restart: unless-stopped
+    environment:
+      AUTH_TOKEN_HASH: ${AUTH_TOKEN_HASH:?set AUTH_TOKEN_HASH in .env}
+      SHORT_DOMAIN: ${SHORT_DOMAIN:-link.desolic.com}
+      DEFAULT_REDIRECT: ${DEFAULT_REDIRECT:-https://desolic.com/}
+      TRUST_PROXY: "true"
+    volumes:
+      # The host folder must be writable by UID 1000 (the container's "node"
+      # user): chown -R 1000:1000 ./data
+      - ./data:/data
+    networks:
+      - shortener
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:?set CF_TUNNEL_TOKEN in .env}
+    networks:
+      - shortener
+    depends_on:
+      - url-shortener
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  shortener:
+    driver: bridge
