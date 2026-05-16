@@ -1,6 +1,6 @@
 {
   "name": "desolic-url-system-v1",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "DESOLIC URL Shortener",
   "type": "module",
   "main": "src/index.js",
