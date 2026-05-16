@@ -32,7 +32,7 @@ let REGEX_CREATE, DEFAULT, PREFIX;
  */
 
 export default function boot({ host, defaultRedirection, create }) {
-  PREFIX = host ? `http://${host}/` : '';
+  PREFIX = host ? `https://${host}/` : '';
   DEFAULT = defaultRedirection;
 
   REGEX_CREATE = new RegExp(`^/${create}(?::([^\/]+))?/(.+)$`);

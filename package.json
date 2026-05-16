@@ -4,8 +4,8 @@
   "description": "DESOLIC URL Shortener",
   "main": "index.js",
   "scripts": {
-    "start": "iojs --use_strict start.js",
-    "test": "CREATE=create DEFAULT=https://www.desolic.de/ HOST=dev:3000 PORT=3000 iojs --use_strict start.js"
+    "start": "CREATE=create DEFAULT=https://desolic.com/ HOST=link.desolic.com iojs --use_strict start.js",
+    "test": "CREATE=create DEFAULT=https://desolic.com/ HOST=link.desolic.com PORT=3000 iojs --use_strict start.js"
   },
   "author": "DEOLIC IT",
   "license": "NO USE ALLOWED",
