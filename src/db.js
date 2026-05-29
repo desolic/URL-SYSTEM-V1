@@ -33,8 +33,7 @@ class UrlStore {
   #db;
   #insert;
   #bumpCounter;
-  #findBySlug;
-  #incrementHits;
+  #resolveStmt;
 
   constructor(db) {
     this.#db = db;
@@ -46,9 +45,11 @@ class UrlStore {
       ON CONFLICT(key) DO UPDATE SET value = value + 1
       RETURNING value
     `);
-    this.#findBySlug = db.prepare('SELECT url FROM urls WHERE slug = ?');
-    this.#incrementHits = db.prepare(
-      'UPDATE urls SET hits = hits + 1 WHERE slug = ?',
+    // Single atomic statement: increments the hit counter and returns the
+    // target URL in one shot — no separate SELECT/UPDATE that could race or
+    // diverge on a crash.
+    this.#resolveStmt = db.prepare(
+      'UPDATE urls SET hits = hits + 1 WHERE slug = ? RETURNING url',
     );
 
     // Atomic: the slug counter and the row are committed together, so a crash
@@ -81,10 +82,8 @@ class UrlStore {
 
   // Returns the target URL for a slug and records the visit, or undefined.
   resolve(slug) {
-    const row = this.#findBySlug.get(slug);
-    if (!row) return undefined;
-    this.#incrementHits.run(slug);
-    return row.url;
+    const row = this.#resolveStmt.get(slug);
+    return row?.url;
   }
 
   close() {
@@ -93,5 +92,5 @@ class UrlStore {
 }
 
 function isUniqueViolation(err) {
-  return typeof err?.code === 'string' && err.code.startsWith('SQLITE_CONSTRAINT');
+  return err?.code === 'SQLITE_CONSTRAINT_UNIQUE';
 }

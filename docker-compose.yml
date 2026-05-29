@@ -1,18 +1,29 @@
 # DESOLIC URL shortener — deploy on Synology Container Manager as a "Project".
 #
-# Two containers on a private network:
-#   - url-shortener : the app, NOT published on any host port
-#   - cloudflared   : an outbound Cloudflare Tunnel that serves link.desolic.com
+# Two containers on two networks:
+#   - url-shortener : the app. NOT published on any host port and only on an
+#                     "internal" network — it has no path to the internet.
+#   - cloudflared   : an outbound Cloudflare Tunnel that serves
+#                     link.desolic.com. It bridges between the internal
+#                     network (to reach url-shortener) and an "egress"
+#                     network (to reach Cloudflare).
 #
-# cloudflared only makes an OUTBOUND connection, so no router port forwarding
-# is needed and there is no conflict with DSM on 443 / 5001.
+# Because cloudflared only makes an OUTBOUND connection, no router port
+# forwarding is needed and there is no conflict with DSM on 443 / 5001.
 #
 # Secrets come from a .env file next to this one (never commit it):
-#   AUTH_TOKEN_HASH=<run: npm run gen-token>
-#   CF_TUNNEL_TOKEN=<from the Cloudflare Zero Trust tunnel>
+#   AUTH_TOKEN_HASH = run "npm run gen-token"
+#   CF_TUNNEL_TOKEN = from the Cloudflare Zero Trust tunnel
 #
-# In the Cloudflare tunnel, route the public hostname link.desolic.com to:
-#   http://url-shortener:3000
+# AUTH_TOKEN_HASH is mounted into url-shortener as a file under
+# /run/secrets/auth_token_hash, so it does not appear in `docker inspect`
+# on that container. CF_TUNNEL_TOKEN has to stay as an environment variable
+# because the cloudflared image is distroless and provides no shell to read
+# a file at startup.
+
+secrets:
+  auth_token_hash:
+    environment: AUTH_TOKEN_HASH
 
 services:
   url-shortener:
@@ -20,16 +31,18 @@ services:
     image: desolic-url-system
     restart: unless-stopped
     environment:
-      AUTH_TOKEN_HASH: ${AUTH_TOKEN_HASH:?set AUTH_TOKEN_HASH in .env}
+      AUTH_TOKEN_HASH_FILE: /run/secrets/auth_token_hash
       SHORT_DOMAIN: ${SHORT_DOMAIN:-link.desolic.com}
       DEFAULT_REDIRECT: ${DEFAULT_REDIRECT:-https://desolic.com/}
       TRUST_PROXY: "true"
+    secrets:
+      - auth_token_hash
     volumes:
       # The host folder must be writable by UID 1000 (the container's "node"
       # user): chown -R 1000:1000 ./data
       - ./data:/data
     networks:
-      - shortener
+      - internal
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -37,22 +50,35 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    mem_limit: 256m
+    pids_limit: 100
+    cpus: 0.5
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.5.2
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
+    command: tunnel run
     environment:
       TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:?set CF_TUNNEL_TOKEN in .env}
     networks:
-      - shortener
+      - internal
+      - egress
     depends_on:
       - url-shortener
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    mem_limit: 128m
+    pids_limit: 100
+    cpus: 0.5
 
 networks:
-  shortener:
+  # No NAT to the outside; only intra-network traffic. url-shortener lives
+  # here exclusively and cannot reach the internet.
+  internal:
+    driver: bridge
+    internal: true
+  # Normal bridge with NAT; only cloudflared joins it.
+  egress:
     driver: bridge
