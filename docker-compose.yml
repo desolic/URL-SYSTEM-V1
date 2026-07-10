@@ -1,25 +1,22 @@
 # DESOLIC URL shortener — deploy on Synology Container Manager as a "Project".
 #
-# Two containers on two networks:
-#   - url-shortener : the app. NOT published on any host port and only on an
-#                     "internal" network — it has no path to the internet.
-#   - cloudflared   : an outbound Cloudflare Tunnel that serves
-#                     link.desolic.com. It bridges between the internal
-#                     network (to reach url-shortener) and an "egress"
-#                     network (to reach Cloudflare).
+# The Cloudflare Tunnel is NOT part of this project — bring up the shared
+# tunnel in ./cloudflared FIRST (docker compose up -d there). It creates the
+# `cloudflare-tunnel` network below, which this project joins as an external
+# network.
 #
-# Because cloudflared only makes an OUTBOUND connection, no router port
-# forwarding is needed and there is no conflict with DSM on 443 / 5001.
+# Effect:
+#   - url-shortener is NOT published on any host port.
+#   - url-shortener joins only the `cloudflare-tunnel` network, which is
+#     `internal: true`; the container has no direct path to the internet.
+#   - The shared cloudflared container reaches url-shortener via Docker DNS
+#     under the fixed name `url-shortener` (container_name below).
 #
-# Secrets come from a .env file next to this one (never commit it):
+# Secret in the .env file next to this one (never commit it):
 #   AUTH_TOKEN_HASH = run "npm run gen-token"
-#   CF_TUNNEL_TOKEN = from the Cloudflare Zero Trust tunnel
 #
 # AUTH_TOKEN_HASH is mounted into url-shortener as a file under
-# /run/secrets/auth_token_hash, so it does not appear in `docker inspect`
-# on that container. CF_TUNNEL_TOKEN has to stay as an environment variable
-# because the cloudflared image is distroless and provides no shell to read
-# a file at startup.
+# /run/secrets/auth_token_hash, so it does not appear in `docker inspect`.
 
 secrets:
   auth_token_hash:
@@ -29,6 +26,7 @@ services:
   url-shortener:
     build: .
     image: desolic-url-system
+    container_name: url-shortener
     restart: unless-stopped
     environment:
       AUTH_TOKEN_HASH_FILE: /run/secrets/auth_token_hash
@@ -42,7 +40,7 @@ services:
       # user): chown -R 1000:1000 ./data
       - ./data:/data
     networks:
-      - internal
+      - cloudflare-tunnel
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -54,31 +52,9 @@ services:
     pids_limit: 100
     cpus: 0.5
 
-  cloudflared:
-    image: cloudflare/cloudflared:2026.5.2
-    restart: unless-stopped
-    command: tunnel run
-    environment:
-      TUNNEL_TOKEN: ${CF_TUNNEL_TOKEN:?set CF_TUNNEL_TOKEN in .env}
-    networks:
-      - internal
-      - egress
-    depends_on:
-      - url-shortener
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    mem_limit: 128m
-    pids_limit: 100
-    cpus: 0.5
-
 networks:
-  # No NAT to the outside; only intra-network traffic. url-shortener lives
-  # here exclusively and cannot reach the internet.
-  internal:
-    driver: bridge
-    internal: true
-  # Normal bridge with NAT; only cloudflared joins it.
-  egress:
-    driver: bridge
+  # Created by ./cloudflared/docker-compose.yml (must be up first).
+  # `internal: true` there — this project cannot reach the internet.
+  cloudflare-tunnel:
+    external: true
+    name: cloudflare-tunnel

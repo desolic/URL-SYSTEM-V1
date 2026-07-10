@@ -44,7 +44,7 @@ Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse) – Betrieb eines internen K
 
 Diese Verarbeitung ist für TLS-Terminierung und Tunnel-Betrieb technisch erforderlich. Mit Cloudflare ist ein Auftragsverarbeitungsvertrag (DPA) inkl. EU-Standardvertragsklauseln abzuschließen – verfügbar unter Cloudflare Dashboard → Notifications → Data Processing Addendum.
 
-**Sonstige Drittanbieter:** keine. Der Container baut keine ausgehenden Verbindungen ins Internet auf; das `internal: true`-Netz des `docker-compose.yml` verhindert das technisch.
+**Sonstige Drittanbieter:** keine. Der Container baut keine ausgehenden Verbindungen ins Internet auf; er hängt ausschließlich am geteilten `cloudflare-tunnel`-Netzwerk (`internal: true`), sodass nur der zentrale `cloudflared`-Container Kontakt nach außen aufnimmt.
 
 **Weiterleitungsziele:** Beim Aufruf eines Kurzlinks wird der Browser per HTTP-303 zur hinterlegten Ziel-URL weitergeleitet. Die nachfolgende Datenverarbeitung verantwortet ausschließlich der Betreiber der Zielseite; `Referrer-Policy: no-referrer` verhindert, dass die Kurzlink-URL als Referer weitergegeben wird.
 
