@@ -2,7 +2,6 @@
 node_modules
 test
 scripts
-cloudflared
 data
 *.log
 npm-debug.log*

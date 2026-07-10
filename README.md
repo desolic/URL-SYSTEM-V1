@@ -27,7 +27,7 @@ Wunsch-Slug optional über `"slug":"…"` im Body (nur `A–Z`, `a–z`, `0–9`
 
 Läuft unprivilegiert (UID 1000), mit `no-new-privileges:true` und `cap_drop: ALL`; read-only Rootfs, `tmpfs /tmp`; Ressourcen-Limits (`mem_limit`, `pids_limit`, `cpus`).
 
-Der Container hängt ausschließlich am geteilten `cloudflare-tunnel`-Netzwerk (`internal: true`, siehe `cloudflared/docker-compose.yml`) und hat keinen direkten Internetzugang; der geteilte, zentrale `cloudflared`-Container ist der einzige Ingress und bridget nach außen. Weitere Apps können sich dem selben Netzwerk anschließen.
+Der Container hängt ausschließlich am geteilten `cloudflare-tunnel`-Netzwerk (`internal: true`, bereitgestellt vom eigenständigen `CLOUDFLARE-TUNNEL-V1`-Projekt) und hat keinen direkten Internetzugang; der zentrale `cloudflared`-Container ist der einzige Ingress und bridget nach außen. Weitere Apps können sich am selben Netzwerk anmelden.
 
 API-Token wird ausschließlich als SHA-256-Hash gespeichert und zeitkonstant verglichen; per Docker-Secret übergebbar (nicht in `docker inspect`).
 
@@ -43,18 +43,7 @@ Versionsgepinnte Images (`node:22.22.3-slim`, `cloudflare/cloudflared:2026.5.2`)
 
 ## Build & Start
 
-Einmalig pro Host: geteilten Cloudflare Tunnel starten (legt das
-`cloudflare-tunnel`-Netzwerk an, das dieses und weitere Projekte nutzen):
-
-```
-cd cloudflared
-cp .env.example .env
-# CF_TUNNEL_TOKEN eintragen
-docker compose up -d
-cd ..
-```
-
-Danach den Shortener bauen und starten:
+Voraussetzung: das eigenständige `CLOUDFLARE-TUNNEL-V1`-Projekt läuft bereits auf demselben Host und stellt das `cloudflare-tunnel`-Netzwerk bereit.
 
 ```
 cp .env.example .env
@@ -63,7 +52,4 @@ mkdir -p data && chown -R 1000:1000 data
 docker compose up -d --build
 ```
 
-Im Cloudflare Zero Trust Dashboard beim Tunnel den Public Hostname
-`link.desolic.com` → `http://url-shortener:3000` hinterlegen. Für weitere Apps
-dort einfach zusätzliche Public Hostnames auf `http://<container-name>:<port>`
-eintragen, die App am selben `cloudflare-tunnel`-Netz anhängen — fertig.
+Im Cloudflare Zero Trust Dashboard beim gemeinsamen Tunnel den Public Hostname `link.desolic.com` → `http://url-shortener:3000` hinterlegen.
