@@ -52,4 +52,4 @@ mkdir -p data && chown -R 1000:1000 data
 docker compose up -d --build
 ```
 
-Im Cloudflare Zero Trust Dashboard beim gemeinsamen Tunnel den Public Hostname `link.desolic.com` → `http://url-shortener:3000` hinterlegen.
+Im Cloudflare Zero Trust Dashboard beim gemeinsamen Tunnel (Networks → Tunnels → *Tunnel wählen* → **Edit**) eine Route `link.desolic.com` → `http://url-shortener:3000` hinterlegen. Der Tab heißt je nach UI-Stand „Public Hostname", „Published application routes" oder „Ingress rules".
