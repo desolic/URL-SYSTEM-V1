@@ -99,6 +99,8 @@ test('non-public redirect targets are rejected', async (t) => {
     'https://192.168.1.1/',
     'https://169.254.1.1/',
     'https://[::1]/',
+    'https://[::ffff:127.0.0.1]/',
+    'https://[::ffff:c0a8:1]/',
   ]) {
     const res = await app.inject({
       method: 'POST',

@@ -15,6 +15,10 @@ try {
 const store = openDatabase(config.databasePath);
 const app = await buildApp(config, store);
 
+// First 8 hex chars of the stored hash — lets operators correlate log
+// entries with the active token across rotations without revealing the hash.
+app.log.info({ tokenId: config.authTokenHash.slice(0, 8) }, 'auth token loaded');
+
 let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;

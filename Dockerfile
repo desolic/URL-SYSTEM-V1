@@ -1,13 +1,14 @@
-FROM node:22-slim AS build
+FROM node:22.22.3-slim AS build
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev \
+    && npm audit --omit=dev --audit-level=high
 COPY src ./src
 
-FROM node:22-slim AS runtime
+FROM node:22.22.3-slim AS runtime
 ENV NODE_ENV=production \
     BIND_ADDRESS=0.0.0.0 \
     PORT=3000 \

@@ -8,7 +8,7 @@ export function makeTokenVerifier(expectedHashHex) {
   return function verify(authorizationHeader) {
     if (typeof authorizationHeader !== 'string') return false;
 
-    const match = /^Bearer (.+)$/.exec(authorizationHeader.trim());
+    const match = /^Bearer\s+(.+)$/.exec(authorizationHeader.trim());
     if (!match) return false;
 
     const presented = createHash('sha256').update(match[1]).digest();

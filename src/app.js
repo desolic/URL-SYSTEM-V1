@@ -166,6 +166,26 @@ function isNonPublicHost(hostname) {
     if (host === '::' || host === '::1') return true;
     if (/^f[cd]/.test(host)) return true; // unique-local fc00::/7
     if (/^fe[89ab]/.test(host)) return true; // link-local fe80::/10
+    // IPv4-mapped IPv6 (::ffff:0:0/96): check the embedded IPv4.
+    if (host.startsWith('::ffff:')) {
+      const tail = host.slice(7);
+      let v4;
+      if (net.isIPv4(tail)) {
+        v4 = tail;
+      } else {
+        const parts = tail.split(':');
+        if (
+          parts.length === 2 &&
+          /^[0-9a-f]{1,4}$/.test(parts[0]) &&
+          /^[0-9a-f]{1,4}$/.test(parts[1])
+        ) {
+          const hi = parseInt(parts[0], 16);
+          const lo = parseInt(parts[1], 16);
+          v4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+        }
+      }
+      if (v4 && isNonPublicHost(v4)) return true;
+    }
     return false;
   }
 
